@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WPN Manager</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        bg: '#050409',
+        surface: '#0c0a14',
+        card: '#12101c',
+        card2: '#17142a',
+        line: 'rgba(255,255,255,0.07)',
+        line2: 'rgba(255,255,255,0.12)',
+        ink: '#f4f4f8',
+        mute: '#8b8a9a',
+        dim: '#5a586b',
+        cyan: '#22d3ee',
+        mint: '#22c55e',
+        amber: '#f59e0b',
+        rose: '#f43f5e',
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+      },
+    }
+  }
+}
+</script>
+<style>
+  html, body { background: #050409; color: #f4f4f8; font-family: 'Inter', system-ui, sans-serif; }
+  ::selection { background: rgba(34,211,238,0.3); }
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+  /* glow accent border */
+  .glow-cyan { box-shadow: 0 0 0 1px rgba(34,211,238,0.4), 0 0 24px rgba(34,211,238,0.15); }
+  .glow-mint { box-shadow: 0 0 0 1px rgba(34,197,94,0.4), 0 0 24px rgba(34,197,94,0.15); }
+  .glow-rose { box-shadow: 0 0 0 1px rgba(244,63,94,0.4), 0 0 24px rgba(244,63,94,0.15); }
+  /* subtle radial bg */
+  body::before {
+    content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:
+      radial-gradient(900px 500px at 80% -10%, rgba(34,211,238,0.08), transparent 60%),
+      radial-gradient(700px 500px at 0% 100%, rgba(34,197,94,0.06), transparent 60%);
+  }
+  .card { background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0)); }
+  /* pulse dot */
+  @keyframes pulse-ring { 0%{transform:scale(0.8);opacity:0.7} 70%{transform:scale(2.2);opacity:0} 100%{opacity:0} }
+  .live-dot::after {
+    content:""; position:absolute; inset:0; border-radius:9999px;
+    background: inherit; animation: pulse-ring 1.8s cubic-bezier(0.2,0.6,0.3,1) infinite;
+  }
+  @media (prefers-reduced-motion: reduce) { .live-dot::after { animation:none } }
+  /* progress shimmer */
+  @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+  .shimmer { background-size: 200% 100%; animation: shimmer 2.5s linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .shimmer { animation:none } }
+  /* toast */
+  .toast { animation: slideIn 0.25s ease-out; }
+  @keyframes slideIn { from{transform:translateY(12px);opacity:0} to{transform:translateY(0);opacity:1} }
+  .log-enter { animation: logIn 0.2s ease-out; }
+  @keyframes logIn { from{opacity:0; transform:translateX(-4px)} to{opacity:1; transform:translateX(0)} }
+  @media (prefers-reduced-motion: reduce) { .log-enter, .toast { animation:none } }
+  /* spinner */
+  @keyframes spin { to { transform: rotate(360deg) } }
+  .spin { animation: spin 0.7s linear infinite; }
+</style>
+</head>
+<body class="min-h-screen antialiased">
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<header class="sticky top-0 z-40 border-b border-line backdrop-blur-xl bg-bg/70">
+  <div class="max-w-7xl mx-auto px-5 h-16 flex items-center gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan/20 to-mint/20 border border-line2 grid place-items-center">
+        <!-- shield svg -->
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-cyan">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </div>
+      <div class="leading-tight">
+        <h1 class="text-[15px] font-semibold tracking-tight">WPN Manager</h1>
+        <p class="text-[11px] text-mute font-mono">account rotation system</p>
+      </div>
+    </div>
+
+    <div class="flex-1"></div>
+
+    <!-- daemon status pill -->
+    <div id="daemon-pill" class="hidden sm:flex items-center gap-2 px-3 h-9 rounded-full bg-card border border-line text-[12px] font-medium">
+      <span id="daemon-dot" class="relative w-2 h-2 rounded-full live-dot bg-mint"></span>
+      <span id="daemon-text" class="text-mute">Демон: —</span>
+    </div>
+
+    <!-- live ws pill -->
+    <div class="flex items-center gap-2 px-3 h-9 rounded-full bg-card border border-line text-[12px] font-medium">
+      <span id="ws-dot" class="relative w-2 h-2 rounded-full bg-amber"></span>
+      <span id="ws-text" class="text-mute hidden sm:inline">Подключение…</span>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-5 py-6 space-y-6">
+
+  <!-- ── Row 1: status hero + actions ─────────────────────── -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Status hero (spans 2) -->
+    <section class="lg:col-span-2 card rounded-2xl border border-line p-6 sm:p-7">
+      <div class="flex items-center justify-between mb-5">
+        <div class="flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-mute"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <h2 class="text-[12px] font-semibold uppercase tracking-wider text-mute">Текущий аккаунт</h2>
+        </div>
+        <span id="active-status" class="px-2.5 py-1 rounded-md text-[11px] font-mono font-medium bg-card2 text-dim border border-line">—</span>
+      </div>
+
+      <!-- empty state -->
+      <div id="active-empty" class="py-10 text-center">
+        <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-card2 border border-line grid place-items-center">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="text-dim"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        </div>
+        <p class="text-sm text-mute">Нет активного аккаунта</p>
+        <p class="text-xs text-dim mt-1">Нажмите «Зарегистрировать», чтобы создать новый</p>
+      </div>
+
+      <!-- loaded state -->
+      <div id="active-loaded" class="hidden">
+        <div class="flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-6 mb-6">
+          <div>
+            <div id="active-days" class="font-mono text-6xl font-semibold leading-none tracking-tight text-mint">—</div>
+            <div class="text-[13px] text-mute mt-2">дней осталось</div>
+          </div>
+          <div class="flex-1"></div>
+          <div class="space-y-1.5 text-right">
+            <div class="flex items-center justify-end gap-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-dim"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+              <span id="active-until" class="font-mono text-[13px] text-mute">—</span>
+            </div>
+            <div class="flex items-center justify-end gap-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-dim"><path d="M4 4h16v16H4z"/><polyline points="22,6 12,13 2,6"/></svg>
+              <span id="active-email" class="font-mono text-[12px] text-ink">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- progress bar -->
+        <div>
+          <div class="flex justify-between text-[11px] text-dim font-mono mb-1.5">
+            <span>Подписка</span>
+            <span id="active-pct">—</span>
+          </div>
+          <div class="h-2 rounded-full bg-card2 overflow-hidden">
+            <div id="active-bar" class="h-full rounded-full bg-gradient-to-r from-cyan to-mint shimmer transition-all duration-500" style="width:0%"></div>
+          </div>
+        </div>
+
+        <!-- subscription import URL -->
+        <div id="sub-url-wrap" class="hidden mt-5">
+          <div class="flex items-center gap-2 mb-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-dim"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            <span class="text-[11px] text-dim font-mono uppercase tracking-wider">URL подписки (для VPN-клиента)</span>
+          </div>
+          <div class="flex items-stretch gap-2">
+            <code id="sub-url" class="flex-1 min-w-0 px-3 py-2.5 rounded-lg bg-card2 border border-line text-[12px] text-cyan font-mono truncate select-all" title=""></code>
+            <button id="copy-url" class="shrink-0 px-3 rounded-lg bg-card2 border border-line2 hover:border-cyan/50 hover:bg-cyan/5 transition-colors flex items-center gap-1.5 cursor-pointer" aria-label="Скопировать URL">
+              <svg id="copy-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-ink"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span id="copy-label" class="text-[12px] font-medium text-ink">Копировать</span>
+            </button>
+          </div>
+          <div class="flex gap-2 mt-2">
+            <a id="open-happ" href="#" target="_blank" rel="noopener" class="text-[11px] font-mono text-mute hover:text-cyan transition-colors">Happ ↗</a>
+            <span class="text-dim">·</span>
+            <a id="copy-v2raytun" href="#" class="text-[11px] font-mono text-mute hover:text-cyan transition-colors cursor-pointer">v2raytun://</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Actions card -->
+    <section class="card rounded-2xl border border-line p-6">
+      <div class="flex items-center gap-2 mb-5">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-mute"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <h2 class="text-[12px] font-semibold uppercase tracking-wider text-mute">Управление</h2>
+      </div>
+
+      <div class="space-y-2.5">
+        <button data-act="register" class="action-btn group w-full flex items-center gap-3 px-4 h-12 rounded-xl bg-card2 border border-line2 hover:border-cyan/50 hover:bg-cyan/5 transition-colors text-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-cyan group-hover:scale-110 transition-transform"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          <div class="flex-1">
+            <div class="text-[13px] font-medium">Зарегистрировать</div>
+            <div class="text-[11px] text-dim">Новый аккаунт на свободной почте</div>
+          </div>
+        </button>
+
+        <button data-act="rotate" class="action-btn group w-full flex items-center gap-3 px-4 h-12 rounded-xl bg-card2 border border-line2 hover:border-amber/50 hover:bg-amber/5 transition-colors text-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-amber group-hover:scale-110 transition-transform"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <div class="flex-1">
+            <div class="text-[13px] font-medium">Принудительная ротация</div>
+            <div class="text-[11px] text-dim">Сменить активный аккаунт сейчас</div>
+          </div>
+        </button>
+
+        <button data-act="check" class="action-btn group w-full flex items-center gap-3 px-4 h-12 rounded-xl bg-card2 border border-line2 hover:border-mint/50 hover:bg-mint/5 transition-colors text-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-mint group-hover:scale-110 transition-transform"><polyline points="20 6 9 17 4 12"/></svg>
+          <div class="flex-1">
+            <div class="text-[13px] font-medium">Проверить подписку</div>
+            <div class="text-[11px] text-dim">Обновить статус сейчас</div>
+          </div>
+        </button>
+
+        <div class="h-px bg-line my-1"></div>
+
+        <button data-act="daemon" class="action-btn group w-full flex items-center gap-3 px-4 h-12 rounded-xl bg-card2 border border-line2 hover:border-rose/50 hover:bg-rose/5 transition-colors text-left">
+          <svg id="daemon-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-rose"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          <div class="flex-1">
+            <div id="daemon-btn-label" class="text-[13px] font-medium">Остановить демон</div>
+            <div class="text-[11px] text-dim">Автоматический мониторинг</div>
+          </div>
+        </button>
+      </div>
+    </section>
+  </div>
+
+  <!-- ── Row 2: accounts table + logs ─────────────────────── -->
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+    <!-- Accounts table -->
+    <section class="lg:col-span-3 card rounded-2xl border border-line overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-line">
+        <div class="flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-mute"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <h2 class="text-[12px] font-semibold uppercase tracking-wider text-mute">Аккаунты</h2>
+        </div>
+        <span id="accounts-count" class="text-[11px] font-mono text-dim">0</span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-[13px]">
+          <thead>
+            <tr class="text-left text-[11px] uppercase tracking-wider text-dim border-b border-line">
+              <th class="px-6 py-2.5 font-medium">Email</th>
+              <th class="px-4 py-2.5 font-medium">Дней</th>
+              <th class="px-4 py-2.5 font-medium hidden sm:table-cell">Истекает</th>
+              <th class="px-4 py-2.5 font-medium text-center">URL</th>
+              <th class="px-6 py-2.5 font-medium text-right">Статус</th>
+            </tr>
+          </thead>
+          <tbody id="accounts-body" class="divide-y divide-line">
+            <tr><td colspan="5" class="px-6 py-8 text-center text-dim text-[12px]">Нет аккаунтов</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Live logs -->
+    <section class="lg:col-span-2 card rounded-2xl border border-line overflow-hidden flex flex-col" style="max-height: 460px;">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-line">
+        <div class="flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-mute"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          <h2 class="text-[12px] font-semibold uppercase tracking-wider text-mute">Лог активности</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="relative w-2 h-2 rounded-full live-dot bg-cyan"></span>
+          <span class="text-[11px] font-mono text-dim">live</span>
+        </div>
+      </div>
+      <div id="logs" class="flex-1 overflow-y-auto px-3 py-2 font-mono text-[12px] space-y-0.5">
+        <div class="px-3 py-2 text-dim">Ожидание событий…</div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="pt-2 pb-4 text-center text-[11px] text-dim font-mono">
+    WPN Manager · ротация аккаунтов · <span id="footer-time">--:--:--</span>
+  </footer>
+</main>
+
+<!-- toast container -->
+<div id="toasts" class="fixed bottom-5 right-5 z-50 space-y-2 w-[320px] max-w-[calc(100vw-2.5rem)]"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+
+// ── status helpers ─────────────────────────────────────────
+const STATUS = {
+  active:   { label: 'Активен',  cls: 'text-mint bg-mint/10 border-mint/30' },
+  expiring: { label: 'Истекает', cls: 'text-amber bg-amber/10 border-amber/30' },
+  expired:  { label: 'Истёк',    cls: 'text-rose bg-rose/10 border-rose/30' },
+};
+
+function statusBadge(st) {
+  const s = STATUS[st] || { label: st || '—', cls: 'text-dim bg-card2 border-line' };
+  return `<span class="px-2.5 py-1 rounded-md text-[11px] font-mono font-medium border ${s.cls}">${s.label}</span>`;
+}
+
+const LEVEL = {
+  info:    'text-ink/80',
+  warning: 'text-amber',
+  error:   'text-rose',
+};
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts.includes('T') ? ts : ts.replace(' ', 'T') + 'Z');
+  if (isNaN(d)) return ts;
+  return d.toLocaleTimeString('ru-RU', { hour12: false });
+}
+
+// ── render active account ──────────────────────────────────
+function renderActive(acct) {
+  const empty = $('#active-empty'), loaded = $('#active-loaded');
+  if (!acct) {
+    empty.classList.remove('hidden');
+    loaded.classList.add('hidden');
+    $('#active-status').textContent = '—';
+    $('#active-status').className = 'px-2.5 py-1 rounded-md text-[11px] font-mono font-medium bg-card2 text-dim border border-line';
+    return;
+  }
+  empty.classList.add('hidden');
+  loaded.classList.remove('hidden');
+
+  const days = acct.subscription_days_left ?? 0;
+  const daysEl = $('#active-days');
+  daysEl.textContent = days;
+  // color by urgency
+  if (days <= 1) { daysEl.className = 'font-mono text-6xl font-semibold leading-none tracking-tight text-rose'; }
+  else if (days <= 3) { daysEl.className = 'font-mono text-6xl font-semibold leading-none tracking-tight text-amber'; }
+  else { daysEl.className = 'font-mono text-6xl font-semibold leading-none tracking-tight text-mint'; }
+
+  $('#active-email').textContent = acct.email;
+  $('#active-until').textContent = acct.subscription_valid_until || '—';
+
+  const st = acct.status || 'active';
+  const badge = $('#active-status');
+  const s = STATUS[st] || { label: st, cls: 'text-dim bg-card2 border-line' };
+  badge.textContent = s.label;
+  badge.className = `px-2.5 py-1 rounded-md text-[11px] font-mono font-medium border ${s.cls}`;
+
+  // progress: assume trial ~7 days baseline
+  const baseline = 7;
+  const pct = Math.max(0, Math.min(100, Math.round((days / baseline) * 100)));
+  $('#active-bar').style.width = pct + '%';
+  $('#active-pct').textContent = pct + '%';
+
+  // subscription import URL
+  const url = acct.subscription_url || '';
+  const wrap = $('#sub-url');
+  const urlBox = $('#sub-url-wrap');
+  if (url) {
+    urlBox.classList.remove('hidden');
+    wrap.textContent = url;
+    wrap.title = url;
+    wrap.setAttribute('title', url);
+    $('#open-happ').href = url + '/happ';
+    $('#copy-v2raytun').dataset.url = 'v2raytun://import/' + url;
+  } else {
+    urlBox.classList.add('hidden');
+  }
+}
+
+// ── copy to clipboard ──────────────────────────────────────
+async function copyText(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // fallback for non-secure contexts
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch {}
+    ta.remove();
+  }
+  if (btn) {
+    const label = btn.querySelector('#copy-label');
+    const orig = label ? label.textContent : null;
+    if (label) label.textContent = 'Скопировано ✓';
+    btn.classList.add('glow-cyan');
+    setTimeout(() => {
+      if (label && orig) label.textContent = orig;
+      btn.classList.remove('glow-cyan');
+    }, 1600);
+  }
+}
+
+// wire copy buttons (delegated, since URL appears after render)
+document.addEventListener('click', (e) => {
+  const copyBtn = e.target.closest('#copy-url');
+  if (copyBtn) {
+    const url = $('#sub-url').textContent;
+    if (url) copyText(url, copyBtn);
+    return;
+  }
+  const rowBtn = e.target.closest('.row-copy-url');
+  if (rowBtn && rowBtn.dataset.url) {
+    copyText(rowBtn.dataset.url, rowBtn);
+    return;
+  }
+  const vt = e.target.closest('#copy-v2raytun');
+  if (vt && vt.dataset.url) {
+    e.preventDefault();
+    copyText(vt.dataset.url);
+    toast('v2raytun:// ссылка скопирована', 'success');
+  }
+});
+
+// ── render accounts table ──────────────────────────────────
+function renderAccounts(accounts) {
+  const body = $('#accounts-body');
+  $('#accounts-count').textContent = accounts.length;
+  if (!accounts.length) {
+    body.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-dim text-[12px]">Нет аккаунтов</td></tr>';
+    return;
+  }
+  body.innerHTML = accounts.map(a => {
+    const days = a.subscription_days_left ?? 0;
+    const dayCls = days <= 1 ? 'text-rose' : days <= 3 ? 'text-amber' : 'text-ink';
+    const url = a.subscription_url || '';
+    const urlCell = url
+      ? `<button class="row-copy-url group inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-card2 border border-line hover:border-cyan/50 hover:bg-cyan/5 transition-colors cursor-pointer" data-url="${esc(url)}" title="${esc(url)}" aria-label="Скопировать URL подписки">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-cyan"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <span class="text-[11px] font-mono text-mute group-hover:text-cyan">URL</span>
+        </button>`
+      : `<span class="text-[11px] font-mono text-dim">—</span>`;
+    return `<tr class="hover:bg-white/[0.02] transition-colors">
+      <td class="px-6 py-3 font-mono text-[12px] text-ink">${esc(a.email)}</td>
+      <td class="px-4 py-3 font-mono text-[12px] ${dayCls}">${days}</td>
+      <td class="px-4 py-3 font-mono text-[11px] text-mute hidden sm:table-cell">${esc(a.subscription_valid_until || '—')}</td>
+      <td class="px-4 py-3 text-center">${urlCell}</td>
+      <td class="px-6 py-3 text-right">${statusBadge(a.status)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── append log line ────────────────────────────────────────
+const MAX_LOGS = 200;
+let logCount = 0;
+function appendLog(entry) {
+  const logs = $('#logs');
+  // clear placeholder
+  if (logCount === 0) logs.innerHTML = '';
+  logCount++;
+
+  const colorCls = LEVEL[entry.level] || LEVEL.info;
+  const time = fmtTime(entry.timestamp) || fmtTime(new Date().toISOString());
+  const icon = entry.level === 'error' ? '✕' : entry.level === 'warning' ? '!' : '·';
+  const iconCls = entry.level === 'error' ? 'text-rose' : entry.level === 'warning' ? 'text-amber' : 'text-dim';
+
+  const row = document.createElement('div');
+  row.className = 'log-enter px-3 py-1 rounded hover:bg-white/[0.03] flex gap-2';
+  row.innerHTML = `<span class="text-dim shrink-0">${time}</span>
+    <span class="${iconCls} shrink-0 w-3 text-center">${icon}</span>
+    <span class="${colorCls} break-all">${esc(entry.message)}</span>`;
+  logs.prepend(row);
+
+  // trim
+  while (logs.children.length > MAX_LOGS) logs.removeChild(logs.lastChild);
+}
+
+// ── toast ──────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const colors = {
+    info:    'border-line2 text-ink',
+    success: 'border-mint/40 text-mint glow-mint',
+    error:   'border-rose/40 text-rose glow-rose',
+  };
+  const el = document.createElement('div');
+  el.className = `toast px-4 py-3 rounded-xl bg-card border text-[13px] backdrop-blur-xl ${colors[type] || colors.info}`;
+  el.textContent = msg;
+  $('#toasts').appendChild(el);
+  setTimeout(() => { el.style.transition = 'opacity .3s, transform .3s'; el.style.opacity = '0'; el.style.transform = 'translateY(8px)'; setTimeout(() => el.remove(), 300); }, 4000);
+}
+
+// ── API calls ──────────────────────────────────────────────
+async function api(path, method = 'GET') {
+  const btn = document.querySelector(`[data-act]`) ; // unused, keep lint calm
+  const res = await fetch(path, { method });
+  return res.json().catch(() => ({}));
+}
+
+async function refreshActive() {
+  const d = await api('/api/accounts/active');
+  renderActive(d.account);
+}
+async function refreshAccounts() {
+  const d = await api('/api/accounts');
+  renderAccounts(d);
+}
+async function refreshDaemon() {
+  const d = await api('/api/daemon');
+  updateDaemonUI(d.running);
+}
+async function refreshLogs() {
+  const d = await api('/api/logs?limit=50');
+  $('#logs').innerHTML = '';
+  logCount = 0;
+  d.reverse().forEach(appendLog);
+}
+
+function updateDaemonUI(running) {
+  const dot = $('#daemon-dot'), text = $('#daemon-text');
+  const btnLabel = $('#daemon-btn-label'), btn = $('#daemon-icon');
+  if (running) {
+    dot.className = 'relative w-2 h-2 rounded-full live-dot bg-mint';
+    text.textContent = 'Демон: работает'; text.className = 'text-mint';
+    btnLabel.textContent = 'Остановить демон';
+    btn.outerHTML = '<svg id="daemon-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-rose"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+    $('#daemon-act')?.remove();
+  } else {
+    dot.className = 'relative w-2 h-2 rounded-full bg-dim';
+    text.textContent = 'Демон: остановлен'; text.className = 'text-dim';
+    btnLabel.textContent = 'Запустить демон';
+    btn.outerHTML = '<svg id="daemon-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-mint"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+  }
+}
+
+// ── action buttons ─────────────────────────────────────────
+const ACT_LABEL = { register: 'Регистрация…', rotate: 'Ротация…', check: 'Проверка…' };
+async function handleAction(act, btn) {
+  const label = btn.querySelector('.text-\\[13px\\]');
+  const orig = label?.textContent;
+  btn.disabled = true;
+  if (label) label.textContent = ACT_LABEL[act] || '…';
+
+  try {
+    let res;
+    if (act === 'register') res = await api('/api/accounts/register', 'POST');
+    else if (act === 'rotate') res = await api('/api/accounts/rotate', 'POST');
+    else if (act === 'check') res = await api('/api/accounts/check', 'POST');
+    else if (act === 'daemon') {
+      const st = await api('/api/daemon');
+      res = await api(st.running ? '/api/daemon/stop' : '/api/daemon/start', 'POST');
+      setTimeout(refreshDaemon, 300);
+    }
+    if (res?.ok) toast(act === 'check' ? 'Подписка проверена' : 'Готово', 'success');
+    else if (res?.error) toast(res.error, 'error');
+  } catch (e) {
+    toast('Ошибка запроса', 'error');
+  } finally {
+    btn.disabled = false;
+    if (label && orig) label.textContent = orig;
+    refreshActive(); refreshAccounts();
+  }
+}
+
+$$('.action-btn').forEach(btn => {
+  btn.addEventListener('click', () => handleAction(btn.dataset.act, btn));
+});
+
+// ── WebSocket ──────────────────────────────────────────────
+let ws, wsRetry = 0;
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/logs`);
+  const dot = $('#ws-dot'), text = $('#ws-text');
+
+  ws.onopen = () => {
+    wsRetry = 0;
+    dot.className = 'relative w-2 h-2 rounded-full bg-mint';
+    text.textContent = 'Подключено'; text.className = 'text-mint';
+  };
+  ws.onmessage = (ev) => {
+    const data = JSON.parse(ev.data);
+    if (data.type === 'log') {
+      appendLog(data);
+      // refresh tables on important events
+      if (data.level === 'info' && /зарегистрирован|ротаци/i.test(data.message)) {
+        refreshActive(); refreshAccounts();
+      }
+    }
+  };
+  ws.onclose = () => {
+    dot.className = 'relative w-2 h-2 rounded-full bg-rose';
+    text.textContent = 'Отключено'; text.className = 'text-rose';
+    wsRetry = Math.min(wsRetry + 1, 6);
+    setTimeout(connectWS, Math.min(1000 * wsRetry, 8000));
+  };
+  ws.onerror = () => ws.close();
+}
+
+// ── footer clock ───────────────────────────────────────────
+function tickClock() {
+  $('#footer-time').textContent = new Date().toLocaleTimeString('ru-RU', { hour12: false });
+}
+setInterval(tickClock, 1000); tickClock();
+
+// ── init ───────────────────────────────────────────────────
+(async function init() {
+  await Promise.all([refreshActive(), refreshAccounts(), refreshDaemon(), refreshLogs()]);
+  connectWS();
+  // periodic refresh (fallback to WS)
+  setInterval(refreshActive, 60000);
+  setInterval(refreshDaemon, 15000);
+})();
+</script>
+</body>
+</html>

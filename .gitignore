@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.db
+*.log
+
+# Config (contains credentials) — never commit
+config.yaml
+
+# Atomic Mail headless browser sessions (login cookies) — never commit
+.atomic_profiles/
+
+# Node
+node_modules/
+
+# Archives / backups
+*.rar
+*.zip
+*.7z
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

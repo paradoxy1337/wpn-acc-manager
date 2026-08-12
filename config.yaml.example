@@ -1,0 +1,25 @@
+# Конфигурация WPN Account Manager
+# Скопируй в config.yaml и заполни свои данные
+
+wpn:
+  base_url: "https://wpnaccount.com"
+  # Как часто проверять подписку (минуты)
+  check_interval_minutes: 30
+  # За сколько дней до окончания подписки начинать ротацию
+  rotation_threshold_days: 1
+
+# Список pre-зарегистрированных почт Atomic Mail
+# Нужен только email + пароль от ящика. Вход выполняется через headless-браузер
+# (session кэшируется в ./.atomic_profiles/<local-part>).
+atomic_mails:
+  - email: "user1@atomicmail.io"
+    password: "your_password_here"
+  - email: "user2@atomicmail.io"
+    password: "your_password_here"
+
+storage:
+  db_path: "./accounts.db"
+
+logging:
+  level: "INFO"
+  file: "./wpn_manager.log"

@@ -1,0 +1,15 @@
+{
+  "name": "wpn",
+  "version": "1.0.0",
+  "description": "Система автоматической регистрации и ротации аккаунтов **wpn.team**.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "playwright": "^1.62.1"
+  }
+}
